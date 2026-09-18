@@ -6,120 +6,125 @@ import os
 from pathlib import Path
 from pikepdf import Pdf
 
-from main import _parse_page_range, extract_pages_from_pdf, merge_pdfs, PageSource
+from pikepdf_mcp.utils import parse_page_range
+from pikepdf_mcp.tools import extract_pages_from_pdf, merge_pdfs
+from pikepdf_mcp.models import PageSource
 
 
 class TestParsePageRange:
     """Test the QPDF-style page range parsing function."""
 
+    # Note: if the below tests look wrong, remember that we are also converting from a 1-indexed 
+    # system to a 0-indexed system. Things will make more sense with that in mind.
+
     def test_none_returns_all_pages(self):
         """Test that None returns all pages."""
-        result = _parse_page_range(None, 10)
+        result = parse_page_range(None, 10)
         assert result == list(range(10))
 
     def test_empty_string_returns_all_pages(self):
         """Test that empty string returns all pages."""
-        result = _parse_page_range("", 10)
+        result = parse_page_range("", 10)
         assert result == list(range(10))
 
     def test_simple_range(self):
         """Test a simple range like '1-5'."""
-        result = _parse_page_range("1-5", 10)
+        result = parse_page_range("1-5", 10)
         assert result == [0, 1, 2, 3, 4]
 
     def test_single_page(self):
         """Test a single page number."""
-        result = _parse_page_range("3", 10)
+        result = parse_page_range("3", 10)
         assert result == [2]
 
     def test_multiple_single_pages(self):
         """Test multiple single pages like '1,6,4'."""
-        result = _parse_page_range("1,6,4", 10)
+        result = parse_page_range("1,6,4", 10)
         assert result == [0, 5, 3]
 
     def test_last_page_z(self):
         """Test 'z' notation for last page."""
-        result = _parse_page_range("z", 10)
+        result = parse_page_range("z", 10)
         assert result == [9]
 
     def test_reverse_range_z_to_1(self):
         """Test reversed range 'z-1' (all pages reversed)."""
-        result = _parse_page_range("z-1", 5)
+        result = parse_page_range("z-1", 5)
         assert result == [4, 3, 2, 1, 0]
 
     def test_reverse_range_descending(self):
         """Test descending range '7-3'."""
-        result = _parse_page_range("7-3", 10)
+        result = parse_page_range("7-3", 10)
         assert result == [6, 5, 4, 3, 2]
 
     def test_r_prefix_last_page(self):
         """Test 'r1' for last page."""
-        result = _parse_page_range("r1", 10)
+        result = parse_page_range("r1", 10)
         assert result == [9]
 
     def test_r_prefix_second_to_last(self):
         """Test 'r2' for second-to-last page."""
-        result = _parse_page_range("r2", 10)
+        result = parse_page_range("r2", 10)
         assert result == [8]
 
     def test_r_prefix_range(self):
         """Test 'r3-r1' for last three pages."""
-        result = _parse_page_range("r3-r1", 10)
+        result = parse_page_range("r3-r1", 10)
         assert result == [7, 8, 9]
 
     def test_r_prefix_range_reversed(self):
         """Test 'r1-r3' for last three pages reversed."""
-        result = _parse_page_range("r1-r3", 10)
+        result = parse_page_range("r1-r3", 10)
         assert result == [9, 8, 7]
 
     def test_multiple_ranges(self):
         """Test multiple ranges like '1,3,5-9,15-12' (from QPDF docs)."""
-        result = _parse_page_range("1,3,5-9,15-12", 20)
+        result = parse_page_range("1,3,5-9,15-12", 20)
         assert result == [0, 2, 4, 5, 6, 7, 8, 14, 13, 12, 11]
 
     def test_mixed_pages_and_ranges(self):
         """Test mixed single pages and ranges '5,7-9,12'."""
-        result = _parse_page_range("5,7-9,12", 20)
+        result = parse_page_range("5,7-9,12", 20)
         assert result == [4, 6, 7, 8, 11]
 
     def test_range_with_last_page(self):
         """Test range '1-z' for all pages."""
-        result = _parse_page_range("1-z", 10)
+        result = parse_page_range("1-z", 10)
         assert result == [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 
     def test_even_filter(self):
         """Test ':even' filter on range '1-20:even'."""
-        result = _parse_page_range("1-20:even", 20)
+        result = parse_page_range("1-20:even", 20)
         # Even positions: 2nd, 4th, 6th, ... = pages 2, 4, 6, 8, 10, 12, 14, 16, 18, 20
         assert result == [1, 3, 5, 7, 9, 11, 13, 15, 17, 19]
 
     def test_odd_filter(self):
         """Test ':odd' filter on range '1-20:odd'."""
-        result = _parse_page_range("1-20:odd", 20)
+        result = parse_page_range("1-20:odd", 20)
         # Odd positions: 1st, 3rd, 5th, ... = pages 1, 3, 5, 7, 9, 11, 13, 15, 17, 19
         assert result == [0, 2, 4, 6, 8, 10, 12, 14, 16, 18]
 
     def test_odd_filter_on_selection(self):
         """Test ':odd' filter on '5,7-9,12:odd' (from QPDF docs)."""
-        result = _parse_page_range("5,7-9,12:odd", 20)
+        result = parse_page_range("5,7-9,12:odd", 20)
         # Pages 5,7,8,9,12 -> odd positions (1st, 3rd, 5th) -> 5, 8, 12
         assert result == [4, 7, 11]
 
     def test_even_filter_on_selection(self):
         """Test ':even' filter on '5,7-9,12:even' (from QPDF docs)."""
-        result = _parse_page_range("5,7-9,12:even", 20)
+        result = parse_page_range("5,7-9,12:even", 20)
         # Pages 5,7,8,9,12 -> even positions (2nd, 4th) -> 7, 9
         assert result == [6, 8]
 
     def test_exclusion_simple(self):
         """Test exclusion 'x' operator: '1-10,x3-4'."""
-        result = _parse_page_range("1-10,x3-4", 20)
+        result = parse_page_range("1-10,x3-4", 20)
         # Pages 1-10 except 3-4 = 1,2,5,6,7,8,9,10
         assert result == [0, 1, 4, 5, 6, 7, 8, 9]
 
     def test_exclusion_complex(self):
         """Test complex exclusion from QPDF docs: '4-10,x7-9,12-8,xr5' in 15-page file."""
-        result = _parse_page_range("4-10,x7-9,12-8,xr5", 15)
+        result = parse_page_range("4-10,x7-9,12-8,xr5", 15)
         # 4-10 = 4,5,6,7,8,9,10
         # x7-9 removes 7,8,9 -> 4,5,6,10
         # 12-8 = 12,11,10,9,8
@@ -130,12 +135,12 @@ class TestParsePageRange:
     def test_out_of_range_raises_error(self):
         """Test that out of range pages raise ValueError."""
         with pytest.raises(ValueError, match="out of range"):
-            _parse_page_range("1-20", 10)
+            parse_page_range("1-20", 10)
 
     def test_invalid_filter_raises_error(self):
         """Test that invalid filters raise ValueError."""
         with pytest.raises(ValueError, match="Invalid filter"):
-            _parse_page_range("1-10:invalid", 10)
+            parse_page_range("1-10:invalid", 10)
 
 
 class TestExtractPages:
