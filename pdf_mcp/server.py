@@ -1,9 +1,9 @@
-"""MCP server setup and tool registration for pikepdf-mcp."""
+"""MCP server setup and tool registration for pdf-mcp."""
 
 from mcp.server import MCPServer
 from mcp.types import ImageContent, TextContent
 
-from pikepdf_mcp.tools import (
+from pdf_mcp.tools import (
     list_acroform_fields,
     list_acroform_fields_on_page,
     get_acroform_field_details,
@@ -18,6 +18,7 @@ from pikepdf_mcp.tools import (
     get_document_details,
     validate_pdf,
     read_layout_as_xml,
+    locate_text_on_page,
     read_text,
 )
 
@@ -40,6 +41,7 @@ for tool in (
     get_document_details,
     validate_pdf,
     read_layout_as_xml,
+    locate_text_on_page,
     read_text,
 ):
     mcp.tool()(tool)

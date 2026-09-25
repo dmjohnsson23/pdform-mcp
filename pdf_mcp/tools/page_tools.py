@@ -2,12 +2,12 @@
 
 from typing import Annotated, Optional, Sequence
 
-from pikepdf import Pdf, Rectangle
+import pymupdf
 from pydantic import Field
 from mcp.server.mcpserver.exceptions import ToolError
 
-from pikepdf_mcp.models import PageSource
-from pikepdf_mcp.utils import parse_page_range
+from pdf_mcp.models import PageSource
+from pdf_mcp.utils import parse_page_range
 
 
 def extract_pages_from_pdf(
@@ -33,17 +33,18 @@ def extract_pages_from_pdf(
     - Exclusions: '1-10,x3-4' = pages 1,2,5,6,7,8,9,10 (excludes 3-4)
     """
     try:
-        with Pdf.open(input_path) as src_pdf:
-            total_pages = len(src_pdf.pages)
-            page_indices = parse_page_range(page_range, total_pages)
-            _validate_page_indices(page_indices, input_path, total_pages)
-            dst_pdf = Pdf.new()
-            dst_pdf.add_pages_from(src_pdf, page_indices)
-            output = output_path if output_path else input_path
-            dst_pdf.save(output)
-            return f"Successfully extracted {len(page_indices)} page(s) from {input_path} to {output}"
+        with pymupdf.open(input_path) as src_pdf:
+            page_indices = parse_page_range(page_range, src_pdf.page_count)
+            src_pdf.select(page_indices)
+            # A document can't be saved back over the file it was opened from (except
+            # incrementally), so render to bytes first and write those out ourselves.
+            data = src_pdf.tobytes()
+        output = output_path if output_path else input_path
+        with open(output, "wb") as f:
+            f.write(data)
+        return f"Successfully extracted {len(page_indices)} page(s) from {input_path} to {output}"
 
-    except FileNotFoundError:
+    except pymupdf.FileNotFoundError:
         raise ToolError(f"PDF file not found: {input_path}")
     except ValueError as e:
         raise ToolError(f"Invalid page range format: {str(e)}")
@@ -62,20 +63,21 @@ def merge_pdfs(
     See extract_pages_from_pdf documentation for complete page range syntax.
     """
     try:
-        merged_pdf = Pdf.new()
+        merged_pdf = pymupdf.open()
         total_pages_added = 0
 
         for source in sources:
-            with Pdf.open(source.file) as src_pdf:
-                total_pages = len(src_pdf.pages)
-                page_indices = parse_page_range(source.page_range, total_pages)
-                _validate_page_indices(page_indices, source.file, total_pages)
-                merged_pdf.add_pages_from(src_pdf, page_indices)
+            with pymupdf.open(source.file) as src_pdf:
+                page_indices = parse_page_range(source.page_range, src_pdf.page_count)
+                # select() reorders/subsets src_pdf in place (supporting arbitrary QPDF-style
+                # ranges, including reversed and repeated pages); insert_pdf then copies it whole.
+                src_pdf.select(page_indices)
+                merged_pdf.insert_pdf(src_pdf)
                 total_pages_added += len(page_indices)
         merged_pdf.save(output_path)
         return f"Successfully merged {len(sources)} PDF(s) ({total_pages_added} total pages) into {output_path}"
 
-    except FileNotFoundError as e:
+    except pymupdf.FileNotFoundError as e:
         raise ToolError(f"PDF file not found: {str(e)}")
     except ValueError as e:
         raise ToolError(f"Invalid page range format: {str(e)}")
@@ -89,46 +91,36 @@ def get_page_details(
 ) -> dict:
     """Get basic information about a specific page."""
     try:
-        with Pdf.open(path) as pdf:
-            total_pages = len(pdf.pages)
-            if page < 1 or page > total_pages:
+        with pymupdf.open(path) as pdf:
+            if page < 1 or page > pdf.page_count:
                 raise ToolError(
-                    f"Invalid page number {page} for {path} (out of range 1-{total_pages})"
+                    f"Invalid page number {page} for {path} (out of range 1-{pdf.page_count})"
                 )
-            pdf_page = pdf.pages.p(page)
+            pdf_page = pdf[page - 1]
 
-            def _box(box):
-                rect = Rectangle(box)
+            def _box(rect):
                 return {
-                    "left": rect.llx,
-                    "right": rect.urx,
-                    "top": rect.ury,
-                    "bottom": rect.lly,
+                    "left": rect.x0,
+                    "right": rect.x1,
+                    "top": rect.y0,
+                    "bottom": rect.y1,
                 }
 
-            annots = pdf_page.obj.get("/Annots", [])
             return {
-                "index": pdf_page.index,
-                "label": pdf_page.label,
-                "objgen": pdf_page.obj.objgen if pdf_page.obj.is_indirect else None,
+                "index": pdf_page.number,
+                # get_label() returns '' when there's no explicit /PageLabels entry; fall back to
+                # the default numbering (matching what a reader would display in that case).
+                "label": pdf_page.get_label() or str(pdf_page.number + 1),
+                "xref": pdf_page.xref,
                 "rotation": pdf_page.rotation,
                 "mediabox": _box(pdf_page.mediabox),
                 "cropbox": _box(pdf_page.cropbox),
-                "annotation_count": len(annots),
+                "annotation_count": len(pdf_page.annot_xrefs()),
                 "image_count": len(pdf_page.get_images()),
             }
-    except FileNotFoundError:
+    except pymupdf.FileNotFoundError:
         raise ToolError(f"PDF file not found: {path}")
     except ToolError:
         raise
     except Exception as e:
         raise ToolError(f"Failed to read page details: {str(e)}")
-
-
-def _validate_page_indices(page_indices:list[int], filename:str, total_pages:int):
-        invalid_pages = [i for i in page_indices if i < 0 or i >= total_pages]
-        if invalid_pages:
-            raise ToolError(
-                f"Invalid page indices in {filename} (out of range 1-{total_pages}): "
-                f"{[i+1 for i in invalid_pages]}"
-            )

@@ -1,4 +1,4 @@
-"""Pydantic models for pikepdf-mcp tools."""
+"""Pydantic models for pdf-mcp tools."""
 
 from typing import Optional
 from pydantic import BaseModel, Field
