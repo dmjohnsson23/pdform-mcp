@@ -1,3 +1,30 @@
-# TODO need to find a library that can render PDFs. Neither Pikepdf or Pdfminer do. Pillow only 
-# supports PDF as write-only. The Python bindings for Poppler do, but seem unmaintained, and also 
-# would force us into GPL.
+import base64
+import pymupdf
+from pydantic import Field
+from mcp.server.mcpserver.exceptions import ToolError
+from typing import Annotated, Union, Optional
+from mcp.types import ImageContent
+
+
+def render(
+    path: Annotated[str, Field(description='The PDF to read.')],
+    page: Annotated[int, Field(description='The page number to render, indexed from 1.')],
+    clip: Annotated[Optional[tuple[int,int,int,int]], Field(description='An optional area to clip rendering to.')]=None,
+) -> ImageContent:
+    """
+    Read one specific indirect object from the PDF by xref.
+
+    The object will be returned in native PDF syntax.
+    """
+    try:
+        with pymupdf.open(path) as pdf:
+            if page < 1 or page > pdf.page_count:
+                raise ToolError(f"Invalid page number {page} for {path} (out of range 1-{pdf.page_count})")
+            image = pdf[page - 1].get_pixmap(clip=clip)
+            return ImageContent(data=base64.b64encode(image.tobytes('png')).decode('ascii'), mime_type='image/png')
+    except pymupdf.FileNotFoundError:
+        raise ToolError(f"PDF file not found: {path}")
+    except ToolError:
+        raise
+    except Exception as e:
+        raise ToolError(f"Failed to render PDF: {str(e)}")

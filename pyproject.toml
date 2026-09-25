@@ -1,12 +1,11 @@
 [project]
-name = "pikepdf-mcp"
+name = "pdf-mcp"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "mcp[cli]>=2.2.0",
-    "pikepdf>=9.11.0",
     "pydantic>=2.13.5",
     "pymupdf>=1.28.2",
     "pymupdf4llm>=1.28.2",
@@ -14,5 +13,6 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "pikepdf>=9.11.0",
     "pytest>=9.1.1",
 ]

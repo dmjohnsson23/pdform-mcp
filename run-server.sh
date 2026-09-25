@@ -1,3 +1,3 @@
 #!/bin/bash
 cd "$(dirname "$0")"
-exec uv run python -m pikepdf_mcp
+exec uv run python -m pdf_mcp

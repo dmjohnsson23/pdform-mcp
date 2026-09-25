@@ -611,6 +611,37 @@ wheels = [
 ]
 
 [[package]]
+name = "pdf-mcp"
+version = "0.1.0"
+source = { virtual = "." }
+dependencies = [
+    { name = "mcp", extra = ["cli"] },
+    { name = "pydantic" },
+    { name = "pymupdf" },
+    { name = "pymupdf4llm" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pikepdf" },
+    { name = "pytest" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "mcp", extras = ["cli"], specifier = ">=2.2.0" },
+    { name = "pydantic", specifier = ">=2.13.5" },
+    { name = "pymupdf", specifier = ">=1.28.2" },
+    { name = "pymupdf4llm", specifier = ">=1.28.2" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pikepdf", specifier = ">=9.11.0" },
+    { name = "pytest", specifier = ">=9.1.1" },
+]
+
+[[package]]
 name = "pikepdf"
 version = "10.13.0.post1"
 source = { registry = "https://pypi.org/simple" }
@@ -650,35 +681,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/89/a8/4857df72cf4773553c2e6a82f93ee5e98c02f1c4e4877379e84d27384982/pikepdf-10.13.0.post1-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:99f6afccd6119233e7133bd4c2ade48461de3ddd4269cc28a4f90cdf7c1372f5", size = 3955964, upload-time = "2026-09-05T06:49:16.656Z" },
     { url = "https://files.pythonhosted.org/packages/48/33/7fc9d6fcdbbcc419792eab6a4b1420bbe484b7c41d256a94582bb80ddade/pikepdf-10.13.0.post1-cp314-cp314t-win_amd64.whl", hash = "sha256:fb05fb7b42d85754219b55111aa61beff4e48da56069e971de1e5aca380c0ac1", size = 3532156, upload-time = "2026-09-05T06:49:18.742Z" },
 ]
-
-[[package]]
-name = "pikepdf-mcp"
-version = "0.1.0"
-source = { virtual = "." }
-dependencies = [
-    { name = "mcp", extra = ["cli"] },
-    { name = "pikepdf" },
-    { name = "pydantic" },
-    { name = "pymupdf" },
-    { name = "pymupdf4llm" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "pytest" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "mcp", extras = ["cli"], specifier = ">=2.2.0" },
-    { name = "pikepdf", specifier = ">=9.11.0" },
-    { name = "pydantic", specifier = ">=2.13.5" },
-    { name = "pymupdf", specifier = ">=1.28.2" },
-    { name = "pymupdf4llm", specifier = ">=1.28.2" },
-]
-
-[package.metadata.requires-dev]
-dev = [{ name = "pytest", specifier = ">=9.1.1" }]
 
 [[package]]
 name = "pillow"

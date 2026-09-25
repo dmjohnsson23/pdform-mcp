@@ -96,7 +96,7 @@ def get_acroform_field_details(
             }
             if len(widgets) == 1:
                 out['annotation_flags'] = int(_xref_key(pdf, widget.xref, 'F') or 0)
-                out['rectangle'] = _rect_to_dict(widget.rect)
+                out['rectangle'] = rect_to_dict(widget.rect)
 
             if field_type == 'Text':
                 out['value'] = widget.field_value
@@ -124,7 +124,7 @@ def get_acroform_field_details(
                         'value': option.on_state(),
                         'xref': option.xref,
                         'annotation_flags': int(_xref_key(pdf, option.xref, 'F') or 0),
-                        'rectangle': _rect_to_dict(option.rect),
+                        'rectangle': rect_to_dict(option.rect),
                     }
                     for option in widgets
                 ]

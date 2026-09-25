@@ -1,4 +1,4 @@
-from pikepdf_mcp import mcp
+from pdf_mcp import mcp
 
 
 if __name__ == "__main__":
