@@ -2,7 +2,7 @@
 
 from typing import Annotated, Optional, Sequence
 
-from pikepdf import Pdf
+from pikepdf import Pdf, Rectangle
 from pydantic import Field
 from mcp.server.mcpserver.exceptions import ToolError
 
@@ -81,6 +81,48 @@ def merge_pdfs(
         raise ToolError(f"Invalid page range format: {str(e)}")
     except Exception as e:
         raise ToolError(f"Failed to merge PDFs: {str(e)}")
+
+
+def get_page_details(
+    path: Annotated[str, Field(description="Path to the PDF file to read.")],
+    page: Annotated[int, Field(description="The page number to inspect (1-indexed).")],
+) -> dict:
+    """Get basic information about a specific page."""
+    try:
+        with Pdf.open(path) as pdf:
+            total_pages = len(pdf.pages)
+            if page < 1 or page > total_pages:
+                raise ToolError(
+                    f"Invalid page number {page} for {path} (out of range 1-{total_pages})"
+                )
+            pdf_page = pdf.pages.p(page)
+
+            def _box(box):
+                rect = Rectangle(box)
+                return {
+                    "left": rect.llx,
+                    "right": rect.urx,
+                    "top": rect.ury,
+                    "bottom": rect.lly,
+                }
+
+            annots = pdf_page.obj.get("/Annots", [])
+            return {
+                "index": pdf_page.index,
+                "label": pdf_page.label,
+                "objgen": pdf_page.obj.objgen if pdf_page.obj.is_indirect else None,
+                "rotation": pdf_page.rotation,
+                "mediabox": _box(pdf_page.mediabox),
+                "cropbox": _box(pdf_page.cropbox),
+                "annotation_count": len(annots),
+                "image_count": len(pdf_page.get_images()),
+            }
+    except FileNotFoundError:
+        raise ToolError(f"PDF file not found: {path}")
+    except ToolError:
+        raise
+    except Exception as e:
+        raise ToolError(f"Failed to read page details: {str(e)}")
 
 
 def _validate_page_indices(page_indices:list[int], filename:str, total_pages:int):

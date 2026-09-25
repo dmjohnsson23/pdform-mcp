@@ -1,4 +1,4 @@
-from pikepdf import Pdf, Name
+from pikepdf import Pdf, Name, Annotation
 from pikepdf.form import Form, TextField, CheckboxField, RadioButtonGroup, ChoiceField, SignatureField, PushbuttonField
 from pydantic import Field
 from mcp.server.mcpserver.exceptions import ToolError
@@ -77,7 +77,7 @@ def get_acroform_field_details(
         pdf = Pdf.open(path)
         form = Form(pdf)
         field = form[fully_qualified_name]
-        annot = form._acroform.get_annotations_for_field(field._field)[0]
+        annots = form._acroform.get_annotations_for_field(field._field)
         out = {
             'fully_qualified_name': field.fully_qualified_name,
             'alternate_name': field.alternate_name,
@@ -85,15 +85,16 @@ def get_acroform_field_details(
             'is_required': field.is_required,
             'is_read_only': field.is_read_only,
             'export_enabled': field.export_enabled,
-            'annotation_flags': annot.flags,
             'field_flags': field.flags,
-            'rectangle': {
-                'left': annot.rect.llx,
-                'right': annot.rect.urx,
-                'top': annot.rect.ury,
-                'bottom': annot.rect.lly,
-            }
         }
+        if len(annots) == 1:
+            out['annotation_flags'] = annots[0].flags,
+            out['rectangle'] = {
+                'left': annots[0].rect.llx,
+                'right': annots[0].rect.urx,
+                'top': annots[0].rect.ury,
+                'bottom': annots[0].rect.lly,
+            }
         if isinstance(field, TextField):
             out['type'] = 'text'
             out['value'] = field.value
@@ -115,6 +116,21 @@ def get_acroform_field_details(
             out['type'] = 'radio'
             out['value'] = field.value
             out['allowed_values'] = tuple(map(str, field.states))
+            out['radio_buttons'] = []
+            for option in field.options:
+                option_annot = Annotation(option._annot_dict)
+                out['radio_buttons'].append({
+                    'name': option_annot.obj.NM,
+                    'value': option.on_value,
+                    'objgen': option_annot.obj.objgen if option_annot.obj.is_indirect else None,
+                    'annotation_flags': option_annot.flags,
+                    'rectangle': {
+                        'left': option_annot.rect.llx,
+                        'right': option_annot.rect.urx,
+                        'top': option_annot.rect.ury,
+                        'bottom': option_annot.rect.lly,
+                    }
+                })
         elif isinstance(field, ChoiceField):
             out['type'] = 'choice'
             out['value'] = field.value

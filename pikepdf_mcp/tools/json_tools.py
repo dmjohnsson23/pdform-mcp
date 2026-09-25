@@ -1,10 +1,10 @@
 """Tools for working with PDF JSON representations."""
 
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Sequence, Optional, Any
 import json
 from io import BytesIO, TextIOWrapper
 
-from pikepdf import Pdf, JSONStreamData
+from pikepdf import Pdf, JSONStreamData, NamePath
 from pydantic import Field
 from mcp.server.mcpserver.exceptions import ToolError
 
@@ -169,8 +169,9 @@ def read_pdf_as_json(
         
 def read_pdf_object_as_json(
     path: Annotated[str, Field(description='The PDF to read.')],
-    objgen: Annotated[tuple[int,int], Field(description='The objgen of the object to read.')],
-) -> dict:
+    objgen: Annotated[Optional[tuple[int,int]], Field(description='The objgen of the object to start from. Omit to start from the PDF\'s root dictionary.')] = None,
+    traverse: Annotated[Optional[Sequence[str|int]], Field(description='The series of names and indices to traverse to locate the object to read. Omit to directly read the object specified by `objgen`.', examples=[['/Resources', '/Font']])] = None,
+) -> Any:
     """
     Get a JSON representation of a single indirect object from within a PDF using the QPDF JSON format.
 
@@ -179,10 +180,17 @@ def read_pdf_object_as_json(
     """
     try:
         pdf = Pdf.open(path)
-        object = pdf.get_object(objgen)
+        if objgen is None:
+            object = pdf.Root
+        else:
+            object = pdf.get_object(objgen)
+        if traverse:
+            object = object[NamePath(*traverse)]
         return json.loads(object.to_json(True))
     except FileNotFoundError:
         raise ToolError(f"PDF file not found: {path}")
+    except KeyError:
+        raise ToolError(f"Object not found: cannot traverse to {traverse} from {objgen or 'root'}")
     except Exception as e:
         raise ToolError(f"Failed to read PDF as JSON: {str(e)}")
 
