@@ -7,14 +7,14 @@ from pydantic import Field
 from mcp.server.mcpserver.exceptions import ToolError
 
 from pdf_mcp.models import PageSource
-from pdf_mcp.utils import parse_page_range
+from pdf_mcp.utils import parse_page_range, rect_to_dict
 
 
 def extract_pages_from_pdf(
     input_path: Annotated[str, Field(description="Path to the source PDF file.")],
     page_range: Annotated[
         Optional[str],
-        Field(description="QPDF page range: '1-5' (range), '1,3,5' (specific), 'z' (last), 'r1' (last), 'r2' (second-to-last), '7-3' (reversed), '1-20:even' (even positions), '1-10,x3-4' (exclude 3-4). Omit for all pages.")
+        Field(description="Page range: '1-5' (range), '1,3,5' (specific), 'z' (last), 'r1' (last), 'r2' (second-to-last), '7-3' (reversed), '1-20:even' (even positions), '1-10,x3-4' (exclude 3-4). Omit for all pages.")
     ] = None,
     output_path: Annotated[
         Optional[str],
@@ -23,14 +23,6 @@ def extract_pages_from_pdf(
 ) -> str:
     """
     Extract specific pages from a PDF file and create a new PDF with only those pages.
-
-    Uses QPDF page range syntax:
-    - Numbers are 1-indexed: '1' = first page, '5' = fifth page
-    - 'z' = last page, 'r1' = last page, 'r2' = second-to-last, etc.
-    - Ranges: '1-5' = pages 1-5, '5-1' = pages 5,4,3,2,1 (reversed)
-    - Comma-separated: '1,3,5,7-9' = pages 1, 3, 5, 7, 8, 9
-    - Filters: '1-20:even' = even positions, '1-20:odd' = odd positions
-    - Exclusions: '1-10,x3-4' = pages 1,2,5,6,7,8,9,10 (excludes 3-4)
     """
     try:
         with pymupdf.open(input_path) as src_pdf:
@@ -98,14 +90,6 @@ def get_page_details(
                 )
             pdf_page = pdf[page - 1]
 
-            def _box(rect):
-                return {
-                    "left": rect.x0,
-                    "right": rect.x1,
-                    "top": rect.y0,
-                    "bottom": rect.y1,
-                }
-
             return {
                 "index": pdf_page.number,
                 # get_label() returns '' when there's no explicit /PageLabels entry; fall back to
@@ -113,8 +97,8 @@ def get_page_details(
                 "label": pdf_page.get_label() or str(pdf_page.number + 1),
                 "xref": pdf_page.xref,
                 "rotation": pdf_page.rotation,
-                "mediabox": _box(pdf_page.mediabox),
-                "cropbox": _box(pdf_page.cropbox),
+                "mediabox": rect_to_dict(pdf_page.mediabox),
+                "cropbox": rect_to_dict(pdf_page.cropbox),
                 "annotation_count": len(pdf_page.annot_xrefs()),
                 "image_count": len(pdf_page.get_images()),
             }
