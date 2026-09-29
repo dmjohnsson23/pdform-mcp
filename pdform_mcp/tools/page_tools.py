@@ -6,8 +6,8 @@ import pymupdf
 from pydantic import Field
 from mcp.server.mcpserver.exceptions import ToolError
 
-from pdf_mcp.models import PageSource
-from pdf_mcp.utils import parse_page_range, rect_to_dict
+from pdform_mcp.models import PageSource
+from pdform_mcp.utils import parse_page_range, rect_to_dict
 
 
 def extract_pages_from_pdf(

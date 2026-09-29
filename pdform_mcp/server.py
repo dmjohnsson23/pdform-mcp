@@ -2,7 +2,7 @@
 
 from mcp.server import MCPServer
 
-from pdf_mcp.tools import (
+from pdform_mcp.tools import (
     list_acroform_fields,
     list_acroform_fields_on_page,
     get_acroform_field_details,

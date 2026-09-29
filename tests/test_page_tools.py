@@ -4,8 +4,8 @@ import pytest
 import pymupdf
 
 from mcp.server.mcpserver.exceptions import ToolError
-from pdf_mcp.tools import extract_pages_from_pdf, merge_pdfs, get_page_details
-from pdf_mcp.models import PageSource
+from pdform_mcp.tools import extract_pages_from_pdf, merge_pdfs, get_page_details
+from pdform_mcp.models import PageSource
 
 
 def make_pdf(path, num_pages: int, label: str = "Page"):

@@ -5,7 +5,7 @@ import pymupdf
 from xml.etree.ElementTree import fromstring
 
 from mcp.server.mcpserver.exceptions import ToolError
-from pdf_mcp.tools import read_text, read_layout_as_xml
+from pdform_mcp.tools import read_text, read_layout_as_xml
 
 
 def make_mixed_content_pdf(path):

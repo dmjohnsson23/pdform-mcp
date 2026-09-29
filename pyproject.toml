@@ -1,7 +1,7 @@
 [project]
-name = "pdf-mcp"
-version = "0.1.0"
-description = "Add your description here"
+name = "pdform-mcp"
+version = "0.1.1"
+description = "Tools for LLMs to inspect and understand PDFs on a deep structural level"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -10,6 +10,16 @@ dependencies = [
     "pymupdf>=1.28.2",
     "pymupdf4llm>=1.28.2",
 ]
+
+[project.scripts]
+pdform-mcp = "pdform_mcp:main"
+
+[build-system]
+requires = ["uv_build>=0.10.1,<0.11.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-root = ""
 
 [dependency-groups]
 dev = [

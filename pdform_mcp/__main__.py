@@ -1,6 +1,6 @@
 """Run the PDF MCP server."""
 
-from pdf_mcp import mcp
+from pdform_mcp import main
 
 if __name__ == "__main__":
-    mcp.run()
+    main()

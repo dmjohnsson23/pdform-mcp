@@ -1,7 +1,7 @@
 import pymupdf
 from pydantic import Field
 from mcp.server.mcpserver.exceptions import ToolError
-from pdf_mcp.utils.output_helpers import rect_to_dict
+from pdform_mcp.utils.output_helpers import rect_to_dict
 from typing import Annotated, Optional, Sequence, Mapping
 
 

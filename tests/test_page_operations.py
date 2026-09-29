@@ -6,9 +6,9 @@ import os
 from pathlib import Path
 from pikepdf import Pdf
 
-from pikepdf_mcp.utils import parse_page_range
-from pikepdf_mcp.tools import extract_pages_from_pdf, merge_pdfs
-from pikepdf_mcp.models import PageSource
+from pdform_mcp.utils import parse_page_range
+from pdform_mcp.tools import extract_pages_from_pdf, merge_pdfs
+from pdform_mcp.models import PageSource
 
 
 class TestParsePageRange:

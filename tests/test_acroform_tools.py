@@ -5,7 +5,7 @@ import pymupdf
 from pikepdf import Pdf, Dictionary, Array, Name, String
 
 from mcp.server.mcpserver.exceptions import ToolError
-from pdf_mcp.tools import list_acroform_fields, list_acroform_fields_on_page, get_acroform_field_details
+from pdform_mcp.tools import list_acroform_fields, list_acroform_fields_on_page, get_acroform_field_details
 
 
 def make_widget_pdf(path):
