@@ -4,7 +4,7 @@ from xml.etree.ElementTree import Element, SubElement, tostring
 import pymupdf
 from pydantic import Field
 from mcp.server.mcpserver.exceptions import ToolError
-from pdform_mcp.utils.output_helpers import rect_to_dict
+from pdform_mcp.utils.output_helpers import rect_to_list, quad_to_list
 
 from pdform_mcp.utils import parse_page_range
 
@@ -77,7 +77,7 @@ def locate_text_on_page(
     path: Annotated[str, Field(description='The PDF to read.')],
     page: Annotated[int, Field(description="The page to locate text on, indexed from 1.")],
     text: Annotated[str, Field(description='The text to search for.')]
-    ) -> list[Mapping]:
+    ) -> list[tuple[float,float,float,float]]:
     """
     Search a page for a specific string and return the rectangles of where it was found on the page.
     """
@@ -85,7 +85,29 @@ def locate_text_on_page(
         with pymupdf.open(path) as pdf:
             pdf_page = pdf[page-1]
             areas = pdf_page.search_for(text)
-            return [rect_to_dict(rect) for rect in areas]
+            return [rect_to_list(rect) for rect in areas]
+    except pymupdf.FileNotFoundError:
+        raise ToolError(f"PDF file not found: {path}")
+    except ValueError as e:
+        raise ToolError(f"Invalid page range format: {str(e)}")
+    except Exception as e:
+        raise ToolError(f"Failed to read text from PDF: {str(e)}")
+
+    
+def locate_text_on_page_as_quads(
+    path: Annotated[str, Field(description='The PDF to read.')],
+    page: Annotated[int, Field(description="The page to locate text on, indexed from 1.")],
+    text: Annotated[str, Field(description='The text to search for.')]
+    ) -> list[tuple[tuple[float,float],tuple[float,float],tuple[float,float],tuple[float,float]]]:
+    """
+    Like `locate_text_on_page`, but returns the full (x,y) for each of the four corners of the 
+    rectangle (i.e. a quad) rather than a basic rect. This allows better capture of rotated text.
+    """
+    try:
+        with pymupdf.open(path) as pdf:
+            pdf_page = pdf[page-1]
+            areas = pdf_page.search_for(text, quads=True)
+            return [quad_to_list(quad) for quad in areas]
     except pymupdf.FileNotFoundError:
         raise ToolError(f"PDF file not found: {path}")
     except ValueError as e:

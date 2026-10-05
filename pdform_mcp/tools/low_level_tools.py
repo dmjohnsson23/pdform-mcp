@@ -1,6 +1,7 @@
 import pymupdf
 from pydantic import Field
 from mcp.server.mcpserver.exceptions import ToolError
+from pdform_mcp.utils import open_pdf_rw
 from typing import Annotated, Union, Optional
 
 
@@ -71,11 +72,11 @@ def low_level_set_object_value(
     Set a value of one specific indirect object in the PDF by xref and key.
     """
     try:
-        with pymupdf.open(path) as pdf:
+        with open_pdf_rw(path) as pdf:
             if xref is None:
                 xref = pdf.pdf_catalog()
             pdf.xref_set_key(xref, key, value)
-            return "Value set successfully"
+        return "Value set successfully"
     except pymupdf.FileNotFoundError:
         raise ToolError(f"PDF file not found: {path}")
     except Exception as e:
@@ -94,11 +95,11 @@ def low_level_smart_set_object_value(
     This method cannot set names, xrefs, or dictionaries as values; only types which can be expressed as JSON primitives and arrays.
     """
     try:
-        with pymupdf.open(path) as pdf:
+        with open_pdf_rw(path) as pdf:
             if xref is None:
                 xref = pdf.pdf_catalog()
             pdf.xref_set_key(xref, key, _json_to_pdf(value))
-            return "Value set successfully"
+        return "Value set successfully"
     except pymupdf.FileNotFoundError:
         raise ToolError(f"PDF file not found: {path}")
     except Exception as e:

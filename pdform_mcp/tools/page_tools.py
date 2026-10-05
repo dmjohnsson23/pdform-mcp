@@ -7,7 +7,7 @@ from pydantic import Field
 from mcp.server.mcpserver.exceptions import ToolError
 
 from pdform_mcp.models import PageSource
-from pdform_mcp.utils import parse_page_range, rect_to_dict
+from pdform_mcp.utils import parse_page_range, rect_to_list, open_pdf_rw
 
 
 def extract_pages_from_pdf(
@@ -25,16 +25,10 @@ def extract_pages_from_pdf(
     Extract specific pages from a PDF file and create a new PDF with only those pages.
     """
     try:
-        with pymupdf.open(input_path) as src_pdf:
-            page_indices = parse_page_range(page_range, src_pdf.page_count)
-            src_pdf.select(page_indices)
-            # A document can't be saved back over the file it was opened from (except
-            # incrementally), so render to bytes first and write those out ourselves.
-            data = src_pdf.tobytes()
-        output = output_path if output_path else input_path
-        with open(output, "wb") as f:
-            f.write(data)
-        return f"Successfully extracted {len(page_indices)} page(s) from {input_path} to {output}"
+        with open_pdf_rw(input_path, output_path) as pdf:
+            page_indices = parse_page_range(page_range, pdf.page_count)
+            pdf.select(page_indices)
+        return f"Successfully extracted {len(page_indices)} page(s) from {input_path} to {output_path}"
 
     except pymupdf.FileNotFoundError:
         raise ToolError(f"PDF file not found: {input_path}")
@@ -97,8 +91,8 @@ def get_page_details(
                 "label": pdf_page.get_label() or str(pdf_page.number + 1),
                 "xref": pdf_page.xref,
                 "rotation": pdf_page.rotation,
-                "mediabox": rect_to_dict(pdf_page.mediabox),
-                "cropbox": rect_to_dict(pdf_page.cropbox),
+                "mediabox": rect_to_list(pdf_page.mediabox),
+                "cropbox": rect_to_list(pdf_page.cropbox),
                 "annotation_count": len(pdf_page.annot_xrefs()),
                 "image_count": len(pdf_page.get_images()),
             }

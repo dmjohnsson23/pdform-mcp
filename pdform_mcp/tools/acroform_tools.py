@@ -1,8 +1,8 @@
 import pymupdf
 from pydantic import Field
 from mcp.server.mcpserver.exceptions import ToolError
-from pdform_mcp.utils.output_helpers import rect_to_dict
-from typing import Annotated, Optional, Sequence, Mapping
+from pdform_mcp.utils import rect_to_list, open_pdf_rw
+from typing import Annotated, Optional, Sequence, Mapping, Any
 
 
 def _widget_summary(widget: pymupdf.Widget) -> Mapping:
@@ -47,7 +47,7 @@ def list_acroform_fields(
 
 def list_acroform_fields_on_page(
     path: Annotated[str, Field(description='The PDF to read.')],
-    page: Annotated[int, Field(description='The page number to select fields from, indexed from 1.')],
+    page: Annotated[int, Field(description='The page number to select fields from.')],
     )->Sequence[Mapping]:
     """List all terminal fields on a specific page, with some basic information about each."""
     try:
@@ -96,7 +96,7 @@ def get_acroform_field_details(
             }
             if len(widgets) == 1:
                 out['annotation_flags'] = int(_xref_key(pdf, widget.xref, 'F') or 0)
-                out['rectangle'] = rect_to_dict(widget.rect)
+                out['rectangle'] = rect_to_list(widget.rect)
 
             if field_type == 'Text':
                 out['value'] = widget.field_value
@@ -117,14 +117,13 @@ def get_acroform_field_details(
                 # Each button is its own widget/annotation sharing one field_name; `rb_parent` is the
                 # xref of the shared field, which is where the group's selected value (/V) actually lives.
                 out['value'] = _xref_key(pdf, widget.rb_parent, 'V') if widget.rb_parent else None
-                out['allowed_values'] = tuple(w.on_state() for w in widgets)
                 out['radio_buttons'] = [
                     {
                         'name': _xref_key(pdf, option.xref, 'NM'),
                         'value': option.on_state(),
                         'xref': option.xref,
                         'annotation_flags': int(_xref_key(pdf, option.xref, 'F') or 0),
-                        'rectangle': rect_to_dict(option.rect),
+                        'rectangle': rect_to_list(option.rect),
                     }
                     for option in widgets
                 ]
@@ -145,4 +144,47 @@ def get_acroform_field_details(
         raise
     except Exception as e:
         raise ToolError(f"Failed to read form data from PDF: {str(e)}")
+
     
+def fill_acroform_fields(
+    input_path: Annotated[str, Field(description="Path to the source PDF file.")],
+    data: Annotated[Mapping[str,Any], Field(description='A mapping of fully-qualified form name to value. For text widgets and choice fields, this should be a string representing the value. For checkboxes, it may be a boolean, or it may be a string representing one of the checkboxes two allowed states. For radio buttons, use the value of the individual radio buttons. Signature fields and push buttons are not supported.')],
+    output_path: Annotated[
+        Optional[str],
+        Field(description="Path for the output PDF. If omitted, overwrites the input file.")
+    ] = None,
+    flatten: Annotated[bool, Field(description='If the form should be flattened after filling.')] = False,
+) -> str:
+    """
+    Fill a PDF form with the given data.
+    """
+    try:
+        with open_pdf_rw(input_path, output_path) as pdf:
+            successful_keys = set()
+            for page in pdf:  
+                for widget in page.widgets():  
+                    if not isinstance(widget, pymupdf.Widget):
+                        # I don't think this does anything in practice, but it makes the type checker happy
+                        continue
+                    if widget.field_name in data:
+                        value = data[widget.field_name]
+                        if widget.field_type == pymupdf.PDF_WIDGET_TYPE_RADIOBUTTON:
+                            # We are iterating widgets, not fields, so this will run for each button in the group
+                            if value == widget.on_state():
+                                widget.field_value = value  
+                            else:
+                                widget.field_value = False
+                        else:
+                            widget.field_value = value
+                        widget.update()
+                        successful_keys.add(widget.field_name)
+            if flatten:
+                pdf.bake(annots=False, widgets=True)
+        unsuccessful_keys = set(data.keys()) - successful_keys
+        if unsuccessful_keys:
+            return f"Some fields could not be filled: {', '.join(unsuccessful_keys)}"
+        return "All fields filled"
+    except pymupdf.FileNotFoundError:
+        raise ToolError(f"PDF file not found: {input_path}")
+    except Exception as e:
+        raise ToolError(f"Failed to write object value PDF: {str(e)}")

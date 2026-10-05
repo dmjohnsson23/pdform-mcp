@@ -1,10 +1,11 @@
 """Tools for getting general information about a PDF document."""
 
-from typing import Annotated, Optional, Sequence
+from typing import Annotated, Optional
 
 import pymupdf
 from pydantic import Field
 from mcp.server.mcpserver.exceptions import ToolError
+from pdform_mcp.utils import open_pdf_rw
 
 
 def get_document_details(
@@ -40,3 +41,28 @@ def get_document_details(
         raise
     except Exception as e:
         raise ToolError(f"Failed to read form data from PDF: {str(e)}")
+
+
+def flatten(
+    input_path: Annotated[str, Field(description="Path to the source PDF file.")],
+    output_path: Annotated[
+        Optional[str],
+        Field(description="Path for the output PDF. If omitted, overwrites the input file.")
+    ] = None,
+    flatten_widgets: Annotated[bool, Field(description="If form widgets should be flattened, resulting in a PDF without form elements.")]=True,
+    flatten_annots: Annotated[bool, Field(description="If other (non-widget) annotations should be flattened.")]=False,
+)-> str:
+    """
+    Flatten the PDF.
+    """
+    try:
+        with open_pdf_rw(input_path, output_path) as pdf:
+            pdf.bake(annots=flatten_annots, widgets=flatten_widgets)
+        return f"Successfully flattened {input_path}"
+
+    except pymupdf.FileNotFoundError:
+        raise ToolError(f"PDF file not found: {input_path}")
+    except ValueError as e:
+        raise ToolError(f"Invalid page range format: {str(e)}")
+    except Exception as e:
+        raise ToolError(f"Failed to extract pages: {str(e)}")
