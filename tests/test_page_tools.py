@@ -160,8 +160,9 @@ class TestGetPageDetails:
         details = get_page_details(pdf, 1)
         # A default new_page() is A4-ish/letter-sized; just check the box is well-formed.
         box = details["mediabox"]
-        assert box["left"] < box["right"]
-        assert box["top"] < box["bottom"]
+        x0, y0, x1, y1 = box
+        assert x0 < x1
+        assert y0 < y1
         assert details["cropbox"] == details["mediabox"]
 
     def test_out_of_range_page_raises_tool_error(self, tmp_path):

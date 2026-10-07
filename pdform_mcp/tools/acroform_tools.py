@@ -2,6 +2,7 @@ import pymupdf
 from pydantic import Field
 from mcp.server.mcpserver.exceptions import ToolError
 from pdform_mcp.utils import rect_to_list, open_pdf_rw
+from pdform_mcp.models import PDFWidget
 from typing import Annotated, Optional, Sequence, Mapping, Any
 
 
@@ -161,8 +162,8 @@ def fill_acroform_fields(
     try:
         with open_pdf_rw(input_path, output_path) as pdf:
             successful_keys = set()
-            for page in pdf:  
-                for widget in page.widgets():  
+            for page in pdf:
+                for widget in page.widgets():
                     if not isinstance(widget, pymupdf.Widget):
                         # I don't think this does anything in practice, but it makes the type checker happy
                         continue
@@ -187,4 +188,64 @@ def fill_acroform_fields(
     except pymupdf.FileNotFoundError:
         raise ToolError(f"PDF file not found: {input_path}")
     except Exception as e:
-        raise ToolError(f"Failed to write object value PDF: {str(e)}")
+        raise ToolError(f"Failed to fill acroform: {str(e)}")
+
+    
+def add_acroform_widget(
+    input_path: Annotated[str, Field(description="Path to the source PDF file.")],
+    page: Annotated[int, Field(description="The page to add the annotation to.")],
+    widget: Annotated[PDFWidget, Field(description='The widget to add.')],
+    output_path: Annotated[
+        Optional[str],
+        Field(description="Path for the output PDF. If omitted, overwrites the input file.")
+    ] = None,
+):
+    """
+    Add an acroform widget. Parent/child relationships will automatically be computed from the widget name.
+    """
+    try:
+        with open_pdf_rw(input_path, output_path) as pdf:
+            if page < 1 or page > pdf.page_count:
+                raise ToolError(f"Invalid page number {page} for {input_path} (out of range 1-{pdf.page_count})")
+            pdf_page = pdf[page-1]
+            annot = pdf_page.add_widget(widget.to_widget())
+        return f"Successfully added widget to {output_path or input_path} (new xref: {annot.xref})"
+
+    except pymupdf.FileNotFoundError:
+        raise ToolError(f"PDF file not found: {input_path}")
+    except ToolError:
+        raise
+    except Exception as e:
+        raise ToolError(f"Failed to add widget: {str(e)}")
+
+    
+def delete_acroform_widget(
+    input_path: Annotated[str, Field(description="Path to the source PDF file.")],
+    xref: Annotated[int, Field(description='The xref of the widget to delete.')],
+    output_path: Annotated[
+        Optional[str],
+        Field(description="Path for the output PDF. If omitted, overwrites the input file.")
+    ] = None,
+):
+    """
+    Remove an acroform widget.
+    """
+    try:
+        with open_pdf_rw(input_path, output_path) as pdf:
+            ok = False
+            for page in pdf:
+                for widget in page.widgets():
+                    if not isinstance(widget, pymupdf.Widget):
+                        # I don't think this does anything in practice, but it makes the type checker happy
+                        continue
+                    if widget.xref == xref:
+                        page.delete_widget(widget)
+                        ok = True
+            if not ok:
+                raise ToolError(f"No field with xref {xref} found in {input_path}")
+        return f"Successfully deleted widget from {output_path or input_path}"
+
+    except pymupdf.FileNotFoundError:
+        raise ToolError(f"PDF file not found: {input_path}")
+    except Exception as e:
+        raise ToolError(f"Failed to delete widgets: {str(e)}")

@@ -40,7 +40,22 @@ def get_document_details(
     except ToolError:
         raise
     except Exception as e:
-        raise ToolError(f"Failed to read form data from PDF: {str(e)}")
+        raise ToolError(f"Failed to read from PDF: {str(e)}")
+
+    
+def read_table_of_contents(
+    path: Annotated[str, Field(description="Path to the PDF file to read.")],
+) -> list:
+    """Read the table of contents for a document"""
+    try:
+        with pymupdf.open(path) as pdf:
+            return pdf.get_toc(False)
+    except pymupdf.FileNotFoundError:
+        raise ToolError(f"PDF file not found: {path}")
+    except ToolError:
+        raise
+    except Exception as e:
+        raise ToolError(f"Failed to read toc from PDF: {str(e)}")
 
 
 def flatten(
