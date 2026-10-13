@@ -1,3 +1,4 @@
+import math
 from typing import Annotated, Optional, Mapping
 from xml.etree.ElementTree import Element, SubElement, tostring
 
@@ -18,8 +19,8 @@ def read_layout_as_xml(
     include_text: Annotated[bool, Field(description='If true, include text objects in the output')] = True,
     include_graphics: Annotated[bool, Field(description='If true, include figure objects, lines, curves, and rectangles in the output.')] = False,
     include_images: Annotated[bool, Field(description='If true, include image objects in the output.')] = False,
-    text_granularity: Annotated[int, Field(description='The level of granularity at which to show text. Use 0 for large text blocks, 1 for individual lines, and 2 for individual characters.', ge=0, le=2)]=0,
-    include_text_style: Annotated[bool, Field(description='If true, includes graphical information about text, such as font and size. This is only relevant if `text_granularity` >= 2')] = False,
+    text_granularity: Annotated[int, Field(description='The level of granularity at which to show text. Use 0 for large text blocks, 1 for individual lines, 2 for spans (runs of characters sharing a font and style within a line), and 3 for individual characters.', ge=0, le=3)]=0,
+    include_text_style: Annotated[bool, Field(description='If true, includes graphical information about text, such as font and size, on each text span. This is only relevant if `text_granularity` >= 2')] = False,
     )->str:
     """
     Show the layout of the PDF content (text, images, lines, figures) in a bespoke XML format.
@@ -130,9 +131,10 @@ def _color_to_str(color) -> str:
 
 # Note: page.get_text() already has an XML mode we could use instead, but doing it ourselves lets us
 # turn down the noise level by excluding things. Our XML format is similar but not compatible.
+# See https://pymupdf.readthedocs.io/en/latest/textpage.html#structure-of-dictionary-outputs
 def _text_to_xml(page: pymupdf.Page, xml_parent: Element, text_granularity: int, include_text_style: bool):
     for block in page.get_text('rawdict')['blocks']:
-        if block['type'] != 0:  # 1 = image block; images are handled separately via include_images
+        if block['type'] != 0:  # 1 = image block; images are handled separately via include_images (These dicts don't contains xrefs)
             continue
         block_xml = SubElement(xml_parent, 'text-box', {'bbox': _bbox_str(block['bbox'])})
         if text_granularity == 0:
@@ -142,22 +144,25 @@ def _text_to_xml(page: pymupdf.Page, xml_parent: Element, text_granularity: int,
             )
             continue
         for line in block['lines']:
-            horizontal = abs(line['dir'][0]) >= abs(line['dir'][1])
-            line_xml = SubElement(block_xml, 'text-line', {
+            line_attrs = {
                 'bbox': _bbox_str(line['bbox']),
-                'orientation': 'horizontal' if horizontal else 'vertical',
-            })
+                'angle': f'{math.degrees(math.atan2(line["dir"][1], line["dir"][0])):.1f}deg',
+            }
+            line_xml = SubElement(block_xml, 'text-line', line_attrs)
             if text_granularity == 1:
                 line_xml.text = ''.join(char['c'] for span in line['spans'] for char in span['chars'])
                 continue
             for span in line['spans']:
+                span_attrs = {'bbox': _bbox_str(span['bbox'])}
+                if include_text_style:
+                    span_attrs['font'] = span['font']
+                    span_attrs['size'] = str(span['size'])
+                span_xml = SubElement(line_xml, 'text-span', span_attrs)
+                if text_granularity == 2:
+                    span_xml.text = ''.join(char['c'] for char in span['chars'])
+                    continue
                 for char in span['chars']:
-                    attrs = {'bbox': _bbox_str(char['bbox'])}
-                    if include_text_style:
-                        attrs['font'] = span['font']
-                        attrs['size'] = str(span['size'])
-                        attrs['upright'] = 'true' if horizontal else 'false'
-                    char_xml = SubElement(line_xml, 'text', attrs)
+                    char_xml = SubElement(span_xml, 'text', {'bbox': _bbox_str(char['bbox'])})
                     char_xml.text = char['c']
 
 

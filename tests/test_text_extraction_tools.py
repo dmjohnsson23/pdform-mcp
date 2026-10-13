@@ -66,16 +66,24 @@ class TestReadLayoutAsXml:
         assert [l.text for l in lines] == ["Hello world", "Second line"]
         assert lines[0].get("orientation") == "horizontal"
 
-    def test_granularity_2_gives_character_level_text_with_style(self, tmp_path):
+    def test_granularity_2_gives_span_level_text_with_style(self, tmp_path):
         pdf = make_mixed_content_pdf(tmp_path / "input.pdf")
 
         xml = fromstring(read_layout_as_xml(
             pdf, page_range="1", text_granularity=2, include_text_style=True,
         ))
-        chars = xml.findall("./page/text-box/text-line/text")
+        spans = xml.findall("./page/text-box/text-line/text-span")
+        assert spans[0].text == "Hello world"
+        assert spans[0].get("font") == "Helvetica"
+        assert spans[0].get("size") == "12.0"
+
+    def test_granularity_3_gives_character_level_text(self, tmp_path):
+        pdf = make_mixed_content_pdf(tmp_path / "input.pdf")
+
+        xml = fromstring(read_layout_as_xml(pdf, page_range="1", text_granularity=3))
+        chars = xml.findall("./page/text-box/text-line/text-span/text")
         assert "".join(c.text for c in chars[:11]) == "Hello world"
-        assert chars[0].get("font") == "Helvetica"
-        assert chars[0].get("size") == "12.0"
+        assert chars[0].get("bbox")
 
     def test_include_text_false_omits_text_boxes(self, tmp_path):
         pdf = make_mixed_content_pdf(tmp_path / "input.pdf")
