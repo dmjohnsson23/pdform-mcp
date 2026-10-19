@@ -2,7 +2,6 @@
 
 import pytest
 import pymupdf
-from pikepdf import Pdf, Dictionary, Array, Name, String
 
 from mcp.server.mcpserver.exceptions import ToolError
 from pdform_mcp.tools import list_acroform_fields, list_acroform_fields_on_page, get_acroform_field_details, add_acroform_widget, fill_acroform_fields
@@ -48,42 +47,26 @@ def make_widget_pdf(path):
 
 
 def make_radio_group_pdf(path, selected="B"):
-    """A PDF with a two-option radio button group on page 1.
+    """A PDF with a two-option radio button group (values "A" and "B") on page 1."""
+    doc = pymupdf.open()
+    doc.new_page()
+    page = doc[0]  # see make_widget_pdf
 
-    PyMuPDF's high-level widget API can't build a proper /Kids radio group (it only
-    supports one field per widget), so this is built directly with pikepdf instead.
+    widgets = []
+    for i, value in enumerate(["A", "B"]):
+        widget = pymupdf.Widget()
+        widget.field_type = pymupdf.PDF_WIDGET_TYPE_RADIOBUTTON
+        widget.field_name = "choice"
+        widget.field_value = value  # The button's on-state name
+        widget.rect = pymupdf.Rect(50 + 30 * i, 150, 70 + 30 * i, 170)
+        page.add_widget(widget)
+        widgets.append(widget)
 
-    PyMuPDF will be fixed in the next release and we can remove dependency on PikePDF.
-    See <https://github.com/pymupdf/PyMuPDF/issues/5165>.
-    """
-    pdf = Pdf.new()
-    page = pdf.add_blank_page(page_size=(200, 200))
+    for widget in widgets:
+        widget.field_value = widget.on_state() == selected
+        widget.update()
 
-    parent = pdf.make_indirect(Dictionary(FT=Name.Btn, T=String("choice"), Ff=1 << 15, Kids=Array([])))
-
-    def make_kid(rect, on_value):
-        selected_as = Name(f"/{on_value}") if on_value == selected else Name.Off
-        kid = Dictionary(
-            Type=Name.Annot,
-            Subtype=Name.Widget,
-            Rect=Array(rect),
-            Parent=parent,
-            AS=selected_as,
-            NM=String(f"radio_{on_value}"),
-            AP=Dictionary(N=Dictionary({
-                f'/{on_value}': pdf.make_indirect(Dictionary(Type=Name.XObject, Subtype=Name.Form, BBox=Array([0, 0, 20, 20]), Length=0)),
-                '/Off': pdf.make_indirect(Dictionary(Type=Name.XObject, Subtype=Name.Form, BBox=Array([0, 0, 20, 20]), Length=0)),
-            })),
-        )
-        return pdf.make_indirect(kid)
-
-    kid_a = make_kid([50, 150, 70, 170], "A")
-    kid_b = make_kid([80, 150, 100, 170], "B")
-    parent.Kids = Array([kid_a, kid_b])
-    parent.V = Name(f"/{selected}")
-    page.Annots = Array([kid_a, kid_b])
-    pdf.Root.AcroForm = Dictionary(Fields=Array([parent]), NeedAppearances=True)
-    pdf.save(path)
+    doc.save(path)
     return str(path)
 
 
@@ -241,23 +224,44 @@ class TestAddAcroformWidgetTypes:
     def test_radio_button(self, tmp_path):
         pdf = make_widget_pdf(tmp_path / "form.pdf")
 
-        add_acroform_widget(pdf, 1, RadioButtonWidget(name="grp", rect=[50, 350, 70, 370]))
+        add_acroform_widget(pdf, 1, RadioButtonWidget(name="grp", value="A", rect=[50, 350, 70, 370]))
 
         assert self._details(pdf, "grp")["type"] == "RadioButton"
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="PyMuPDF 1.28.2 add_widget does not create a /Parent//Kids radio group for same-named radio buttons, despite its documentation. Will be fixed in next PyMuPdf release, see <https://github.com/pymupdf/PyMuPDF/issues/5165>.",
-    )
     def test_same_named_radio_buttons_form_one_group(self, tmp_path):
         pdf = make_widget_pdf(tmp_path / "form.pdf")
 
-        add_acroform_widget(pdf, 1, RadioButtonWidget(name="grp", rect=[50, 350, 70, 370]))
-        add_acroform_widget(pdf, 1, RadioButtonWidget(name="grp", rect=[80, 350, 100, 370]))
+        add_acroform_widget(pdf, 1, RadioButtonWidget(name="grp", value="A", rect=[50, 350, 70, 370]))
+        add_acroform_widget(pdf, 1, RadioButtonWidget(name="grp", value="B", rect=[80, 350, 100, 370]))
 
         details = self._details(pdf, "grp")
         assert len(details["radio_buttons"]) == 2
         assert details["xref"] != details["radio_buttons"][0]["xref"]
+        assert {b["value"] for b in details["radio_buttons"]} == {"A", "B"}
+        assert details["value"] in (None, "Off")
+
+    @pytest.mark.parametrize("widget", [
+        TextWidget(name="lbl", rect=[50, 350, 150, 370], label="My label"),
+        CheckBoxWidget(name="lbl", rect=[50, 350, 70, 370], label="My label"),
+        RadioButtonWidget(name="lbl", value="A", rect=[50, 350, 70, 370], label="My label"),
+        ComboBoxWidget(name="lbl", rect=[50, 350, 150, 370], choices=["X"], label="My label"),
+        ListBoxWidget(name="lbl", rect=[50, 350, 150, 400], choices=["X"], label="My label"),
+    ])
+    def test_field_label(self, tmp_path, widget):
+        pdf = make_widget_pdf(tmp_path / "form.pdf")
+
+        add_acroform_widget(pdf, 1, widget)
+
+        assert self._details(pdf, "lbl")["alternate_name"] == "My label"
+
+    def test_radio_group_can_be_selected_after_creation(self, tmp_path):
+        pdf = make_widget_pdf(tmp_path / "form.pdf")
+
+        add_acroform_widget(pdf, 1, RadioButtonWidget(name="grp", value="A", rect=[50, 350, 70, 370]))
+        add_acroform_widget(pdf, 1, RadioButtonWidget(name="grp", value="B", rect=[80, 350, 100, 370]))
+        fill_acroform_fields(pdf, {"grp": "B"})
+
+        assert self._details(pdf, "grp")["value"] == "B"
 
     def test_combobox(self, tmp_path):
         pdf = make_widget_pdf(tmp_path / "form.pdf")

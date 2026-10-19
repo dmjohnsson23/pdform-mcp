@@ -16,11 +16,21 @@ class PageSource(BaseModel):
     )
 
 
-class TextWidget(BaseModel):
-    """A text input widget."""
-    type: Literal["text"] = "text"
+class _FieldWidget(BaseModel):
+    """Properties common to all field widgets."""
     name: str = Field(description="Fully qualified field name")
     rect: List[float] = Field(description="Widget rectangle [x0, y0, x1, y1]")
+    label: Optional[str] = Field(default=None, description="Human-readable label for the field (the alternate field name, shown as a tooltip and used by accessibility tools)")
+
+    def _finish(self, widget: pymupdf.Widget) -> pymupdf.Widget:
+        if self.label is not None:
+            widget.field_label = self.label
+        return widget
+
+
+class TextWidget(_FieldWidget):
+    """A text input widget."""
+    type: Literal["text"] = "text"
     multiline: bool = Field(default=False, description="Allow multiple lines")
     password: bool = Field(default=False, description="Mask input as password")
     is_required: bool = Field(default=False, description="Field is required")
@@ -40,14 +50,12 @@ class TextWidget(BaseModel):
             widget.field_flags |= pymupdf.PDF_FIELD_IS_REQUIRED
         if self.max_length:
             widget.text_maxlen = self.max_length
-        return widget
+        return self._finish(widget)
 
 
-class CheckBoxWidget(BaseModel):
+class CheckBoxWidget(_FieldWidget):
     """A checkbox widget."""
     type: Literal["checkbox"] = "checkbox"
-    name: str = Field(description="Fully qualified field name")
-    rect: List[float] = Field(description="Widget rectangle [x0, y0, x1, y1]")
     is_required: bool = Field(default=False, description="Field is required")
 
     def to_widget(self) -> pymupdf.Widget:
@@ -58,33 +66,35 @@ class CheckBoxWidget(BaseModel):
         widget.rect = pymupdf.Rect(self.rect)
         if self.is_required:
             widget.field_flags |= pymupdf.PDF_FIELD_IS_REQUIRED
-        return widget
+        return self._finish(widget)
 
 
-class RadioButtonWidget(BaseModel):
+class RadioButtonWidget(_FieldWidget):
     """A single radio button in a group."""
     type: Literal["radio"] = "radio"
     name: str = Field(description="Fully qualified field name (shared by group)")
-    rect: List[float] = Field(description="Widget rectangle [x0, y0, x1, y1]")
+    value: str = Field(description="The value the group takes when this button is selected (its 'on' state, e.g. \"Male\"). Must be unique within the group; buttons sharing a value toggle together.")
     is_required: bool = Field(default=False, description="Field is required")
 
     def to_widget(self) -> pymupdf.Widget:
-        """Convert to pymupdf.Widget object ready for add_widget()."""
+        """Convert to pymupdf.Widget object ready for add_widget().
+
+        The widget's field_value is the button's on-state name, which means it will be created
+        selected. Callers must deselect it after add_widget(); see add_acroform_widget().
+        """
         widget = pymupdf.Widget()
         widget.field_type = pymupdf.PDF_WIDGET_TYPE_RADIOBUTTON
         widget.field_name = self.name
-        widget.field_value = False  # PyMuPDF raises "bad xref" when adding a radio widget that is not explicitly off
+        widget.field_value = self.value
         widget.rect = pymupdf.Rect(self.rect)
         if self.is_required:
             widget.field_flags |= pymupdf.PDF_FIELD_IS_REQUIRED
-        return widget
+        return self._finish(widget)
 
 
-class ComboBoxWidget(BaseModel):
+class ComboBoxWidget(_FieldWidget):
     """A dropdown (combo box) widget."""
     type: Literal["combobox"] = "combobox"
-    name: str = Field(description="Fully qualified field name")
-    rect: List[float] = Field(description="Widget rectangle [x0, y0, x1, y1]")
     choices: List[str] = Field(description="Available options")
     editable: bool = Field(default=False, description="Allow custom values")
     is_required: bool = Field(default=False, description="Field is required")
@@ -100,14 +110,12 @@ class ComboBoxWidget(BaseModel):
             widget.field_flags |= pymupdf.PDF_CH_FIELD_IS_EDIT
         if self.is_required:
             widget.field_flags |= pymupdf.PDF_FIELD_IS_REQUIRED
-        return widget
+        return self._finish(widget)
 
 
-class ListBoxWidget(BaseModel):
+class ListBoxWidget(_FieldWidget):
     """A list box (selection) widget."""
     type: Literal["listbox"] = "listbox"
-    name: str = Field(description="Fully qualified field name")
-    rect: List[float] = Field(description="Widget rectangle [x0, y0, x1, y1]")
     choices: List[str] = Field(description="Available options")
     multiselect: bool = Field(default=False, description="Allow multiple selections")
     is_required: bool = Field(default=False, description="Field is required")
@@ -123,7 +131,7 @@ class ListBoxWidget(BaseModel):
             widget.field_flags |= pymupdf.PDF_CH_FIELD_IS_MULTI_SELECT
         if self.is_required:
             widget.field_flags |= pymupdf.PDF_FIELD_IS_REQUIRED
-        return widget
+        return self._finish(widget)
 
 
 PDFWidget = Annotated[

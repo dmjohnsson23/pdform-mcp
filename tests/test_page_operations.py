@@ -4,7 +4,7 @@ import pytest
 import tempfile
 import os
 from pathlib import Path
-from pikepdf import Pdf
+import pymupdf
 
 from pdform_mcp.utils import parse_page_range
 from pdform_mcp.tools import extract_pages_from_pdf, merge_pdfs
@@ -148,9 +148,9 @@ class TestExtractPages:
 
     def create_test_pdf(self, num_pages: int) -> str:
         """Create a test PDF with the specified number of pages."""
-        pdf = Pdf.new()
+        pdf = pymupdf.open()
         for i in range(num_pages):
-            page = pdf.add_blank_page(page_size=(612, 792))
+            pdf.new_page(width=612, height=792)
 
         temp_file = tempfile.NamedTemporaryFile(mode='wb', suffix='.pdf', delete=False)
         pdf.save(temp_file.name)
@@ -167,8 +167,8 @@ class TestExtractPages:
             assert "5 page(s)" in result
 
             # Verify output
-            with Pdf.open(output_pdf) as pdf:
-                assert len(pdf.pages) == 5
+            with pymupdf.open(output_pdf) as pdf:
+                assert len(pdf) == 5
         finally:
             os.unlink(input_pdf)
             os.unlink(output_pdf)
@@ -183,8 +183,8 @@ class TestExtractPages:
             assert "5 page(s)" in result
 
             # Verify output
-            with Pdf.open(output_pdf) as pdf:
-                assert len(pdf.pages) == 5
+            with pymupdf.open(output_pdf) as pdf:
+                assert len(pdf) == 5
         finally:
             os.unlink(input_pdf)
             os.unlink(output_pdf)
@@ -199,8 +199,8 @@ class TestExtractPages:
             assert "4 page(s)" in result
 
             # Verify output
-            with Pdf.open(output_pdf) as pdf:
-                assert len(pdf.pages) == 4
+            with pymupdf.open(output_pdf) as pdf:
+                assert len(pdf) == 4
         finally:
             os.unlink(input_pdf)
             os.unlink(output_pdf)
@@ -215,8 +215,8 @@ class TestExtractPages:
             assert "5 page(s)" in result
 
             # Verify output has all pages
-            with Pdf.open(output_pdf) as pdf:
-                assert len(pdf.pages) == 5
+            with pymupdf.open(output_pdf) as pdf:
+                assert len(pdf) == 5
         finally:
             os.unlink(input_pdf)
             os.unlink(output_pdf)
@@ -230,8 +230,8 @@ class TestExtractPages:
             assert "5 page(s)" in result
 
             # Verify input was overwritten
-            with Pdf.open(input_pdf) as pdf:
-                assert len(pdf.pages) == 5
+            with pymupdf.open(input_pdf) as pdf:
+                assert len(pdf) == 5
         finally:
             os.unlink(input_pdf)
 
@@ -258,9 +258,9 @@ class TestMergePDFs:
 
     def create_test_pdf(self, num_pages: int) -> str:
         """Create a test PDF with the specified number of pages."""
-        pdf = Pdf.new()
+        pdf = pymupdf.open()
         for i in range(num_pages):
-            page = pdf.add_blank_page(page_size=(612, 792))
+            pdf.new_page(width=612, height=792)
 
         temp_file = tempfile.NamedTemporaryFile(mode='wb', suffix='.pdf', delete=False)
         pdf.save(temp_file.name)
@@ -283,8 +283,8 @@ class TestMergePDFs:
             assert "7 total pages" in result
 
             # Verify output
-            with Pdf.open(output_pdf) as pdf:
-                assert len(pdf.pages) == 7
+            with pymupdf.open(output_pdf) as pdf:
+                assert len(pdf) == 7
         finally:
             os.unlink(pdf1)
             os.unlink(pdf2)
@@ -306,8 +306,8 @@ class TestMergePDFs:
             assert "6 total pages" in result
 
             # Verify output
-            with Pdf.open(output_pdf) as pdf:
-                assert len(pdf.pages) == 6
+            with pymupdf.open(output_pdf) as pdf:
+                assert len(pdf) == 6
         finally:
             os.unlink(pdf1)
             os.unlink(pdf2)
@@ -329,8 +329,8 @@ class TestMergePDFs:
             assert "5 total pages" in result
 
             # Verify output
-            with Pdf.open(output_pdf) as pdf:
-                assert len(pdf.pages) == 5
+            with pymupdf.open(output_pdf) as pdf:
+                assert len(pdf) == 5
         finally:
             os.unlink(pdf1)
             os.unlink(pdf2)
@@ -348,8 +348,8 @@ class TestMergePDFs:
             assert "8 total pages" in result
 
             # Verify output
-            with Pdf.open(output_pdf) as pdf:
-                assert len(pdf.pages) == 8
+            with pymupdf.open(output_pdf) as pdf:
+                assert len(pdf) == 8
         finally:
             for pdf in pdfs:
                 os.unlink(pdf)
@@ -368,8 +368,8 @@ class TestMergePDFs:
             assert "5 total pages" in result
 
             # Verify output
-            with Pdf.open(output_pdf) as pdf:
-                assert len(pdf.pages) == 5
+            with pymupdf.open(output_pdf) as pdf:
+                assert len(pdf) == 5
         finally:
             os.unlink(pdf1)
             os.unlink(output_pdf)

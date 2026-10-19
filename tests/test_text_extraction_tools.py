@@ -64,7 +64,7 @@ class TestReadLayoutAsXml:
         xml = fromstring(read_layout_as_xml(pdf, page_range="1", text_granularity=1))
         lines = xml.findall("./page/text-box/text-line")
         assert [l.text for l in lines] == ["Hello world", "Second line"]
-        assert lines[0].get("orientation") == "horizontal"
+        assert lines[0].get("angle") == "0.0deg"
 
     def test_granularity_2_gives_span_level_text_with_style(self, tmp_path):
         pdf = make_mixed_content_pdf(tmp_path / "input.pdf")

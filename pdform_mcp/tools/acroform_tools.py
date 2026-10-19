@@ -2,7 +2,7 @@ import pymupdf
 from pydantic import Field
 from mcp.server.mcpserver.exceptions import ToolError
 from pdform_mcp.utils import rect_to_list, open_pdf_rw
-from pdform_mcp.models import PDFWidget
+from pdform_mcp.models import PDFWidget, RadioButtonWidget
 from typing import Annotated, Optional, Sequence, Mapping, Any
 
 
@@ -208,7 +208,12 @@ def add_acroform_widget(
             if page < 1 or page > pdf.page_count:
                 raise ToolError(f"Invalid page number {page} for {input_path} (out of range 1-{pdf.page_count})")
             pdf_page = pdf[page-1]
-            annot = pdf_page.add_widget(widget.to_widget())
+            pdf_widget = widget.to_widget()
+            annot = pdf_page.add_widget(pdf_widget)
+            if isinstance(widget, RadioButtonWidget):
+                # Radio buttons are created selected (field_value is their on-state name); start the group unselected
+                pdf_widget.field_value = False
+                pdf_widget.update()
         return f"Successfully added widget to {output_path or input_path} (new xref: {annot.xref})"
 
     except pymupdf.FileNotFoundError:
